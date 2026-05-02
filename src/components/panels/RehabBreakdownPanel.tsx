@@ -1,100 +1,192 @@
 'use client';
-
+import { useState } from 'react';
 import type { PropertyInput, RehabResult } from '@/types';
 import { getRegionalPricing } from '@/lib/engines/rehabEngine';
 
-const fmt = (n: number) => '$' + Math.round(n).toLocaleString();
-const COLORS = ['#c2620a','#185fa5','#3b6d11','#854f0b','#993556','#534ab7','#1d9e75','#d85a30','#888'];
+const fmt = (n: number) => '$'+Math.abs(n).toLocaleString('en-US',{maximumFractionDigits:0});
+const COLORS = ['#1F3A5F','#2EC4B6','#E07B2A','#6B7C93','#2980b9','#1a8a82','#935116','#C0392B','#888'];
+
+const ITEM_LABELS: Record<string, string> = {
+  kitchen:     '🍳 Kitchen',
+  bathrooms:   '🚿 Bathrooms',
+  flooring:    '🪵 Flooring',
+  roof:        '🏠 Roof',
+  hvac:        '❄️ HVAC',
+  electrical:  '⚡ Electrical',
+  plumbing:    '🔧 Plumbing',
+  paint:       '🎨 Paint',
+  foundation:  '🏗 Foundation',
+  landscaping: '🌿 Landscaping',
+  windows:     '🪟 Windows',
+  doors:       '🚪 Doors',
+  furnishing:  '🛋 Furnishing',
+  hotTub:      '♨️ Hot Tub',
+  contingency: '🛡 Contingency',
+};
 
 export function RehabBreakdownPanel({ input, rehab }: { input: PropertyInput; rehab: RehabResult }) {
-  const entries = Object.entries(rehab.lineItems).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
-  const total   = rehab.total;
+  // Track which items are enabled (all on by default)
+  const allKeys = Object.keys(rehab.lineItems).filter(k => (rehab.lineItems as Record<string,number>)[k] > 0);
+  const initEnabled = Object.fromEntries(allKeys.map(k => [k, true]));
+  const [enabled, setEnabled] = useState<Record<string,boolean>>(initEnabled);
+
+  const toggle = (key: string) => setEnabled(prev => ({ ...prev, [key]: !prev[key] }));
+
+  // Recalculate totals based on what's enabled
+  const activeItems = Object.entries(rehab.lineItems)
+    .filter(([k, v]) => v > 0 && enabled[k] !== false);
+  const zeroedItems = Object.entries(rehab.lineItems)
+    .filter(([k, v]) => v > 0 && enabled[k] === false);
+
+  const adjustedTotal = activeItems.reduce((a, [,v]) => a + v, 0);
+  const savedAmount   = zeroedItems.reduce((a, [,v]) => a + v, 0);
+  const allEntries    = Object.entries(rehab.lineItems).filter(([,v]) => v > 0);
+
+  const ageMult = input.yearBuilt<1970?'1.20×':input.yearBuilt<1985?'1.14×':input.yearBuilt<2000?'1.04×':'1.00×';
 
   return (
-    <div className="space-y-5">
-      <div className="grid grid-cols-3 gap-3">
+    <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+
+      {/* Summary cards */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
         {[
-          { label:'Total rehab cost', value:fmt(total), sub:'All line items + contingency' },
-          { label:'Cost per sqft',    value:`${fmt(rehab.perSqft)}/sqft`, sub:'Dynamically calculated' },
-          { label:'Region',           value:rehab.regionLabel, sub:`Labor ×${rehab.laborMultiplier.toFixed(2)} · Age ×${rehab.ageMultiplier.toFixed(2)}` },
-        ].map(m => (
-          <div key={m.label} className="bg-white border border-gray-200 rounded-xl p-4">
-            <div className="text-xs text-gray-500 mb-1">{m.label}</div>
-            <div className="text-xl font-semibold font-mono text-gray-900">{m.value}</div>
-            <div className="text-[11px] text-gray-400 mt-1">{m.sub}</div>
+          ['Full rehab estimate', fmt(rehab.total), 'Before adjustments', '#1F3A5F'],
+          ['Adjusted total', fmt(adjustedTotal), 'Active items only', '#2EC4B6'],
+          ['Items zeroed out', fmt(savedAmount), `${zeroedItems.length} item${zeroedItems.length!==1?'s':''} skipped`, '#E07B2A'],
+          ['Cost per sqft', `${fmt(Math.round(adjustedTotal/input.sqft))}/sqft`, 'Adjusted', '#6B7C93'],
+        ].map(([l,v,s,c]) => (
+          <div key={l} style={{ background:'#FFFFFF', border:'1px solid #DDE3EC', borderRadius:10, padding:'14px 16px', boxShadow:'0 1px 3px rgba(31,58,95,0.06)' }}>
+            <div style={{ fontSize:10, color:'#6B7C93', marginBottom:4, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em' }}>{l}</div>
+            <div style={{ fontSize:20, fontWeight:700, fontFamily:'monospace', color:c as string }}>{v}</div>
+            <div style={{ fontSize:11, color:'#6B7C93', marginTop:2 }}>{s}</div>
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-2 gap-5">
+      {/* Savings banner */}
+      {savedAmount > 0 && (
+        <div style={{ background:'#e8faf9', border:'1px solid #2EC4B6', borderRadius:10, padding:'12px 16px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div>
+            <span style={{ fontWeight:700, color:'#1a8a82' }}>✓ Scope reduction applied — </span>
+            <span style={{ color:'#1F3A5F', fontSize:13 }}>You zeroed out {zeroedItems.length} item{zeroedItems.length!==1?'s':''}, saving <strong>{fmt(savedAmount)}</strong> from your rehab budget.</span>
+          </div>
+          <button onClick={() => setEnabled(Object.fromEntries(allKeys.map(k=>[k,true])))}
+            style={{ fontSize:11, padding:'4px 12px', border:'1px solid #2EC4B6', borderRadius:6, background:'#fff', color:'#1a8a82', cursor:'pointer', fontWeight:600, whiteSpace:'nowrap' }}>
+            Reset all
+          </button>
+        </div>
+      )}
+
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+
+        {/* Line item table with toggles */}
         <div>
-          <h3 className="text-sm font-medium mb-3 text-gray-700">Line-item breakdown</h3>
-          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-            <table className="w-full text-sm">
-              <thead><tr className="bg-gray-50 border-b border-gray-200">
-                <th className="text-left px-4 py-2 text-xs text-gray-500 font-medium">Category</th>
-                <th className="text-right px-4 py-2 text-xs text-gray-500 font-medium">Cost</th>
-                <th className="text-right px-4 py-2 text-xs text-gray-500 font-medium">%</th>
-              </tr></thead>
-              <tbody>
-                {entries.map(([key, val], i) => (
-                  <tr key={key} className="border-t border-gray-100">
-                    <td className="px-4 py-2.5">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2.5 h-2.5 rounded-sm" style={{ background: COLORS[i % COLORS.length] }} />
-                        <span className="capitalize">{key.replace(/([A-Z])/g, ' $1')}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-2.5 text-right font-mono">{fmt(val)}</td>
-                    <td className="px-4 py-2.5 text-right text-gray-400">{((val / total) * 100).toFixed(1)}%</td>
-                  </tr>
-                ))}
-                <tr className="border-t-2 border-gray-200 bg-gray-50">
-                  <td className="px-4 py-2.5 font-medium">Total</td>
-                  <td className="px-4 py-2.5 text-right font-mono font-semibold">{fmt(total)}</td>
-                  <td className="px-4 py-2.5 text-right">100%</td>
-                </tr>
-              </tbody>
-            </table>
+          <div style={{ fontSize:12, fontWeight:700, color:'#1F3A5F', marginBottom:10, textTransform:'uppercase', letterSpacing:'0.08em' }}>
+            Line items — toggle to include/exclude
+          </div>
+          <div style={{ background:'#FFFFFF', border:'1px solid #DDE3EC', borderRadius:10, overflow:'hidden', boxShadow:'0 1px 3px rgba(31,58,95,0.06)' }}>
+            {allEntries.map(([key, val], i) => {
+              const isOn = enabled[key] !== false;
+              return (
+                <div key={key} style={{ display:'flex', alignItems:'center', padding:'11px 16px', borderBottom: i < allEntries.length-1 ? '1px solid #F0F2F5' : 'none', background: isOn ? '#fff' : '#F5F6F8', opacity: isOn ? 1 : 0.55, transition:'all 0.2s' }}>
+
+                  {/* Toggle switch */}
+                  <div onClick={() => toggle(key)}
+                    style={{ width:36, height:20, borderRadius:10, background: isOn ? '#2EC4B6' : '#DDE3EC', position:'relative', cursor:'pointer', flexShrink:0, marginRight:12, transition:'background 0.2s' }}>
+                    <div style={{ width:16, height:16, borderRadius:8, background:'#fff', position:'absolute', top:2, left: isOn ? 18 : 2, transition:'left 0.2s', boxShadow:'0 1px 3px rgba(0,0,0,0.2)' }} />
+                  </div>
+
+                  {/* Color dot */}
+                  <div style={{ width:10, height:10, borderRadius:2, background: isOn ? COLORS[i%COLORS.length] : '#ccc', flexShrink:0, marginRight:10 }} />
+
+                  {/* Label */}
+                  <span style={{ flex:1, fontSize:13, color: isOn ? '#1F3A5F' : '#9ca3af', fontWeight: isOn ? 500 : 400 }}>
+                    {ITEM_LABELS[key] || key}
+                  </span>
+
+                  {/* Amount */}
+                  <span style={{ fontFamily:'monospace', fontSize:13, color: isOn ? '#1F3A5F' : '#9ca3af', marginRight:12 }}>
+                    {isOn ? fmt(val) : <span style={{ textDecoration:'line-through' }}>{fmt(val)}</span>}
+                  </span>
+
+                  {/* % of total */}
+                  <span style={{ fontSize:11, color:'#6B7C93', width:40, textAlign:'right' }}>
+                    {isOn ? ((val/rehab.total)*100).toFixed(0)+'%' : '—'}
+                  </span>
+                </div>
+              );
+            })}
+
+            {/* Adjusted total row */}
+            <div style={{ display:'flex', alignItems:'center', padding:'12px 16px', background:'#1F3A5F', borderTop:'2px solid #DDE3EC' }}>
+              <div style={{ width:36, marginRight:12 }} />
+              <div style={{ width:10, marginRight:10 }} />
+              <span style={{ flex:1, fontSize:13, fontWeight:700, color:'#fff' }}>Adjusted total</span>
+              <span style={{ fontFamily:'monospace', fontSize:14, fontWeight:700, color:'#2EC4B6', marginRight:12 }}>{fmt(adjustedTotal)}</span>
+              <span style={{ width:40 }} />
+            </div>
           </div>
 
-          <div className="mt-4 space-y-2">
-            {entries.slice(0, 7).map(([key, val], i) => (
-              <div key={key} className="flex items-center gap-3">
-                <span className="text-xs text-gray-500 w-24 text-right shrink-0 capitalize">{key.replace(/([A-Z])/g, ' $1')}</span>
-                <div className="flex-1 bg-gray-200 rounded-full h-2">
-                  <div className="h-2 rounded-full" style={{ width:`${(val/total)*100}%`, background:COLORS[i%COLORS.length] }} />
-                </div>
-                <span className="text-xs font-mono w-16 shrink-0 text-gray-600">{fmt(val)}</span>
-              </div>
-            ))}
+          {/* Quick actions */}
+          <div style={{ display:'flex', gap:8, marginTop:10 }}>
+            <button onClick={() => setEnabled(Object.fromEntries(allKeys.map(k=>[k,true])))}
+              style={{ flex:1, padding:'7px', border:'1px solid #DDE3EC', borderRadius:6, background:'#fff', color:'#1F3A5F', cursor:'pointer', fontSize:12, fontWeight:600 }}>
+              ✓ Enable all
+            </button>
+            <button onClick={() => {
+              const cosmetic = ['paint','flooring','landscaping','doors'];
+              setEnabled(Object.fromEntries(allKeys.map(k=>[k, cosmetic.includes(k)])));
+            }}
+              style={{ flex:1, padding:'7px', border:'1px solid #DDE3EC', borderRadius:6, background:'#fff', color:'#1F3A5F', cursor:'pointer', fontSize:12, fontWeight:600 }}>
+              🎨 Cosmetic only
+            </button>
+            <button onClick={() => {
+              const structural = ['roof','hvac','electrical','plumbing','foundation'];
+              setEnabled(Object.fromEntries(allKeys.map(k=>[k, structural.includes(k)])));
+            }}
+              style={{ flex:1, padding:'7px', border:'1px solid #DDE3EC', borderRadius:6, background:'#fff', color:'#1F3A5F', cursor:'pointer', fontSize:12, fontWeight:600 }}>
+              🏗 Structural only
+            </button>
           </div>
         </div>
 
+        {/* Right side — bar chart + details */}
         <div>
-          <h3 className="text-sm font-medium mb-3 text-gray-700">Pricing engine details</h3>
-          <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3 text-sm">
+          <div style={{ fontSize:12, fontWeight:700, color:'#1F3A5F', marginBottom:10, textTransform:'uppercase', letterSpacing:'0.08em' }}>Budget allocation</div>
+
+          {/* Bar chart */}
+          <div style={{ background:'#FFFFFF', border:'1px solid #DDE3EC', borderRadius:10, padding:16, marginBottom:14, boxShadow:'0 1px 3px rgba(31,58,95,0.06)' }}>
+            {allEntries.map(([key,val],i) => {
+              const isOn = enabled[key] !== false;
+              return (
+                <div key={key} style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10, opacity: isOn?1:0.35 }}>
+                  <span style={{ fontSize:11, color:'#6B7C93', width:110, textAlign:'right', flexShrink:0 }}>{ITEM_LABELS[key]||key}</span>
+                  <div style={{ flex:1, background:'#F0F2F5', borderRadius:4, height:8 }}>
+                    <div style={{ width: isOn ? `${(val/rehab.total)*100}%` : '0%', height:8, borderRadius:4, background:COLORS[i%COLORS.length], transition:'width 0.3s' }} />
+                  </div>
+                  <span style={{ fontSize:11, fontFamily:'monospace', width:52, flexShrink:0, color:'#1F3A5F' }}>{isOn?fmt(val):'$0'}</span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Pricing details */}
+          <div style={{ background:'#FFFFFF', border:'1px solid #DDE3EC', borderRadius:10, padding:16, boxShadow:'0 1px 3px rgba(31,58,95,0.06)' }}>
+            <div style={{ fontSize:11, fontWeight:700, color:'#1F3A5F', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:10 }}>Pricing engine</div>
             {[
               ['Region', rehab.regionLabel],
               ['Labor multiplier', `${rehab.laborMultiplier.toFixed(2)}×`],
-              ['Age adjustment', `${rehab.ageMultiplier.toFixed(2)}× (built ${input.yearBuilt})`],
-              ['Strategy multiplier', `${rehab.strategyMultiplier.toFixed(2)}× (${input.exitStrategy})`],
+              ['Age adjustment', `${ageMult} (built ${input.yearBuilt})`],
+              ['Strategy', input.exitStrategy.toUpperCase()],
               ['Finish level', rehab.finishLevel],
-              ['Pricing version', rehab.pricingVersion],
-              ['Contingency rate', input.condition === 'light' || input.condition === 'moderate' ? '10%' : '15%'],
-            ].map(([label, value]) => (
-              <div key={label} className="flex justify-between items-center py-1.5 border-b border-gray-100 last:border-0">
-                <span className="text-gray-500">{label}</span>
-                <span className="font-medium capitalize">{value}</span>
+              ['Contingency', input.condition==='light'||input.condition==='moderate'?'10%':'15%'],
+              ['Data version', rehab.pricingVersion],
+            ].map(([l,v]) => (
+              <div key={l} style={{ display:'flex', justifyContent:'space-between', padding:'7px 0', borderBottom:'1px solid #F0F2F5', fontSize:13 }}>
+                <span style={{ color:'#6B7C93' }}>{l}</span>
+                <span style={{ fontWeight:600, color:'#1F3A5F', textTransform:'capitalize' }}>{v}</span>
               </div>
             ))}
-          </div>
-
-          <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs text-amber-900 space-y-2">
-            <div className="font-medium">⚠ Pricing notes</div>
-            <div>Estimates based on Q1-2025 TX contractor surveys. Always get 3 competitive bids before committing to a rehab budget.</div>
-            <div className="font-medium mt-2">Live API integrations (V2)</div>
-            <div>RSMeans · HomeAdvisor · BLS OES · Material pricing feeds</div>
           </div>
         </div>
       </div>
