@@ -8,7 +8,7 @@ function Card({ label, value, sub, tone }: { label:string; value:string; sub?:st
   const color = tone==='good'?'#1a8a82':tone==='warn'?'#E07B2A':tone==='bad'?'#C0392B':'#1F3A5F';
   return (
     <div style={{ background:'#FFFFFF', border:'1px solid #DDE3EC', borderRadius:10, padding:'14px 16px', boxShadow:'0 1px 3px rgba(31,58,95,0.06)' }}>
-      <div style={{ fontSize:11, color:'#6B7C93', marginBottom:4, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.05em' }}>{label}</div>
+      <div style={{ fontSize:10, color:'#6B7C93', marginBottom:4, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em' }}>{label}</div>
       <div style={{ fontSize:22, fontWeight:700, fontFamily:'monospace', color }}>{value}</div>
       {sub && <div style={{ fontSize:11, color:'#6B7C93', marginTop:2 }}>{sub}</div>}
     </div>
@@ -31,31 +31,44 @@ function RiskBadge({ r }: { r: RiskFlag }) {
   );
 }
 
-export function DealOverviewPanel({ input, rehab, deal, risks }: { input:PropertyInput; rehab:RehabResult; deal:DealResult; risks:RiskFlag[] }) {
+interface Props {
+  input: PropertyInput;
+  rehab: RehabResult;       // adjusted rehab (toggles applied)
+  fullRehab: RehabResult;   // original full rehab
+  deal: DealResult;
+  risks: RiskFlag[];
+}
+
+export function DealOverviewPanel({ input, rehab, fullRehab, deal, risks }: Props) {
   const isFlip = input.exitStrategy === 'flip';
-  const score = deal.dealScore;
+  const score  = deal.dealScore;
   const scoreColor = score.score>=70?'#2EC4B6':score.score>=45?'#E07B2A':'#C0392B';
   const arc = (score.score / 100) * 201.1;
+  const rehabAdjusted = rehab.total < fullRehab.total;
+  const savedAmount   = fullRehab.total - rehab.total;
 
   const flipRows = [
-    { l:'ARV', v:fmt(input.arv), t:'pos' },
-    { l:'− Purchase price', v:fmt(input.purchasePrice), t:'neg' },
-    { l:'− Rehab cost', v:fmt(rehab.total), t:'neg' },
-    { l:'− Carrying costs', v:fmt(deal.loan.totalCarryingCost), t:'neg' },
-    { l:'− Closing costs (buy)', v:fmt(deal.texasCosts.titleEscrowBuy), t:'neg' },
-    { l:'− Property tax', v:fmt(deal.texasCosts.propertyTax), t:'neg' },
-    { l:'− Realtor + sell closing', v:fmt(deal.texasCosts.realtorCommission + deal.texasCosts.titleEscrowSell), t:'neg' },
-    { l:'Net profit', v:fmt(deal.flip?.netProfit??0), t:'total' },
+    { l:'ARV',                      v:fmt(input.arv),                                                    t:'pos'     },
+    { l:'− Purchase price',         v:fmt(input.purchasePrice),                                          t:'neg'     },
+    { l:'− Rehab cost',             v:fmt(rehab.total),     note: rehabAdjusted ? `↓ ${fmt(savedAmount)} saved` : undefined, t:'neg' },
+    { l:'− Carrying costs',         v:fmt(deal.loan.totalCarryingCost),                                  t:'neg'     },
+    { l:'− Closing costs (buy)',    v:fmt(deal.texasCosts.titleEscrowBuy),                                t:'neg'     },
+    { l:'− Property tax',           v:fmt(deal.texasCosts.propertyTax),                                  t:'neg'     },
+    { l:'− Realtor + sell closing', v:fmt(deal.texasCosts.realtorCommission+deal.texasCosts.titleEscrowSell), t:'neg' },
+    { l:'Net profit',               v:fmt(deal.flip?.netProfit??0),                                      t:'total'   },
   ];
+
   const rentalRows = [
-    { l:'Gross annual rent', v:fmt((deal.rental?.grossMonthlyRent??0)*12), t:'pos' },
-    { l:'− Operating expenses', v:fmt(deal.rental?.operatingExpenses??0), t:'neg' },
-    { l:'= NOI', v:fmt(deal.rental?.noi??0), t:'neutral' },
-    { l:'− Annual debt service', v:fmt(deal.rental?.annualDebtService??0), t:'neg' },
-    { l:'= Annual cash flow', v:fmt(deal.rental?.annualCashFlow??0), t:'total' },
+    { l:'Gross annual rent',    v:fmt((deal.rental?.grossMonthlyRent??0)*12), t:'pos'     },
+    { l:'− Operating expenses', v:fmt(deal.rental?.operatingExpenses??0),    t:'neg'     },
+    { l:'= NOI',                v:fmt(deal.rental?.noi??0),                  t:'neutral' },
+    { l:'− Annual debt service',v:fmt(deal.rental?.annualDebtService??0),    t:'neg'     },
+    { l:'= Annual cash flow',   v:fmt(deal.rental?.annualCashFlow??0),       t:'total'   },
   ];
+
   const rows = isFlip ? flipRows : rentalRows;
-  const rowStyle: Record<string,React.CSSProperties> = {
+
+  const rowStyle: Record<string, React.CSSProperties> = {
     pos:     { background:'#e8faf9', color:'#1a8a82', border:'1px solid #b2ebe7' },
     neg:     { background:'#fdecea', color:'#922b21', border:'1px solid #f5b7b1' },
     neutral: { background:'#F5F6F8', color:'#1F3A5F', border:'1px solid #DDE3EC' },
@@ -64,6 +77,7 @@ export function DealOverviewPanel({ input, rehab, deal, risks }: { input:Propert
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+
       {/* Score card */}
       <div style={{ display:'flex', alignItems:'center', gap:20, background:'#FFFFFF', border:'1px solid #DDE3EC', borderRadius:12, padding:20, boxShadow:'0 2px 8px rgba(31,58,95,0.08)' }}>
         <div style={{ position:'relative', width:80, height:80, flexShrink:0 }}>
@@ -76,11 +90,14 @@ export function DealOverviewPanel({ input, rehab, deal, risks }: { input:Propert
         <div>
           <div style={{ fontSize:20, fontWeight:800, color:scoreColor, marginBottom:4 }}>{score.label} — Grade {score.grade}</div>
           <div style={{ fontSize:13, color:'#6B7C93', lineHeight:1.6 }}>{score.explanation}</div>
-          <div style={{ fontSize:11, color:'#A8BFDA', marginTop:4 }}>{rehab.regionLabel} · {input.condition} · {input.sqft.toLocaleString()} sqft · built {input.yearBuilt}</div>
+          <div style={{ fontSize:11, color:'#A8BFDA', marginTop:4 }}>
+            {rehab.regionLabel} · {input.condition} · {input.sqft.toLocaleString()} sqft · built {input.yearBuilt}
+            {rehabAdjusted && <span style={{ color:'#2EC4B6', marginLeft:8, fontWeight:600 }}>· Scope adjusted ({fmt(savedAmount)} saved)</span>}
+          </div>
         </div>
       </div>
 
-      {/* Metrics grid */}
+      {/* Metrics */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12 }}>
         {isFlip ? <>
           <Card label="Net profit" value={fmt(deal.flip?.netProfit??0)} sub="After all TX costs" tone={(deal.flip?.netProfit??0)>30000?'good':(deal.flip?.netProfit??0)>0?'warn':'bad'} />
@@ -102,12 +119,22 @@ export function DealOverviewPanel({ input, rehab, deal, risks }: { input:Propert
       {/* Waterfall + Risks */}
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
         <div>
-          <div style={{ fontSize:12, fontWeight:700, color:'#1F3A5F', marginBottom:10, textTransform:'uppercase', letterSpacing:'0.08em' }}>Profit waterfall</div>
+          <div style={{ fontSize:12, fontWeight:700, color:'#1F3A5F', marginBottom:10, textTransform:'uppercase', letterSpacing:'0.08em' }}>
+            Profit waterfall
+            {rehabAdjusted && <span style={{ fontSize:10, fontWeight:600, color:'#2EC4B6', marginLeft:8, background:'#e8faf9', padding:'2px 8px', borderRadius:10 }}>Scope adjusted</span>}
+          </div>
           <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
-            {rows.map((row,i) => (
-              <div key={i} style={{ display:'flex', justifyContent:'space-between', padding:'9px 14px', borderRadius:6, fontSize:13, ...rowStyle[row.t] }}>
+            {rows.map((row: any, i: number) => (
+              <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'9px 14px', borderRadius:6, fontSize:13, ...rowStyle[row.t] }}>
                 <span>{row.l}</span>
-                <span style={{ fontFamily:'monospace' }}>{row.v}</span>
+                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  {row.note && (
+                    <span style={{ fontSize:10, background:'#e8faf9', color:'#1a8a82', padding:'1px 6px', borderRadius:6, fontWeight:600 }}>
+                      {row.note}
+                    </span>
+                  )}
+                  <span style={{ fontFamily:'monospace' }}>{row.v}</span>
+                </div>
               </div>
             ))}
           </div>
