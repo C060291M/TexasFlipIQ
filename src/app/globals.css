@@ -4,23 +4,26 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 224 14% 10%;
-    --card: 0 0% 100%;
-    --card-foreground: 224 14% 10%;
-    --muted: 220 14% 96%;
-    --muted-foreground: 220 9% 46%;
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
+    --background: 0 0% 7%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 11%;
+    --card-foreground: 0 0% 98%;
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 60%;
+    --border: 0 0% 20%;
+    --input: 0 0% 20%;
+    --texas-orange: #BF5700;
+    --texas-red: #CC0000;
+    --texas-white: #FFFFFF;
   }
   * { box-sizing: border-box; }
   body {
-    background: hsl(var(--background));
-    color: hsl(var(--foreground));
+    background: #111111;
+    color: #F5F5F5;
+    font-family: system-ui, sans-serif;
   }
   input[type="number"]::-webkit-inner-spin-button,
-  input[type="number"]::-webkit-outer-spin-button {
-    -webkit-appearance: none;
-  }
+  input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
   input[type="number"] { -moz-appearance: textfield; }
+  select option { background: #1a1a1a; color: #f5f5f5; }
 }
