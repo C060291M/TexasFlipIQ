@@ -5,26 +5,28 @@ const fmt = (n: number) => isNaN(n)||!isFinite(n) ? '--' : '$'+Math.abs(n).toLoc
 const pct = (n: number) => isNaN(n)||!isFinite(n) ? '--' : (Math.round(n*10)/10)+'%';
 
 function Card({ label, value, sub, tone }: { label:string; value:string; sub?:string; tone?:'good'|'warn'|'bad' }) {
-  const color = tone==='good' ? '#15803d' : tone==='warn' ? '#d97706' : tone==='bad' ? '#dc2626' : '#111';
+  const color = tone==='good' ? '#22c55e' : tone==='warn' ? '#BF5700' : tone==='bad' ? '#CC0000' : '#f5f5f5';
   return (
-    <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:10, padding:'14px 16px' }}>
-      <div style={{ fontSize:11, color:'#9ca3af', marginBottom:4 }}>{label}</div>
-      <div style={{ fontSize:22, fontWeight:600, fontFamily:'monospace', color }}>{value}</div>
-      {sub && <div style={{ fontSize:11, color:'#9ca3af', marginTop:2 }}>{sub}</div>}
+    <div style={{ background:'#1a1a1a', border:'1px solid #2a2a2a', borderRadius:10, padding:'14px 16px' }}>
+      <div style={{ fontSize:11, color:'#666', marginBottom:4 }}>{label}</div>
+      <div style={{ fontSize:22, fontWeight:700, fontFamily:'monospace', color }}>{value}</div>
+      {sub && <div style={{ fontSize:11, color:'#555', marginTop:2 }}>{sub}</div>}
     </div>
   );
 }
 
 function RiskBadge({ r }: { r: RiskFlag }) {
-  const bg = r.severity==='danger' ? '#fee2e2' : r.severity==='warning' ? '#fef3c7' : '#eff6ff';
-  const border = r.severity==='danger' ? '#ef4444' : r.severity==='warning' ? '#f59e0b' : '#3b82f6';
-  const color = r.severity==='danger' ? '#7f1d1d' : r.severity==='warning' ? '#78350f' : '#1e3a5f';
-  const icon = r.severity==='danger' ? '🚨' : r.severity==='warning' ? '⚠' : 'ℹ';
+  const styles = {
+    danger:  { bg:'#1a0000', border:'#CC0000', color:'#ff6b6b', icon:'🚨' },
+    warning: { bg:'#1a0e00', border:'#BF5700', color:'#ff9944', icon:'⚠' },
+    info:    { bg:'#001020', border:'#3b82f6', color:'#60a5fa', icon:'ℹ' },
+  };
+  const st = styles[r.severity];
   return (
-    <div style={{ background:bg, borderLeft:`3px solid ${border}`, color, borderRadius:6, padding:'10px 12px', marginBottom:8, fontSize:12, lineHeight:1.5 }}>
-      <div style={{ fontWeight:600 }}>{icon} {r.title}</div>
-      <div style={{ marginTop:2, opacity:0.85 }}>{r.description}</div>
-      {r.mitigation && <div style={{ marginTop:4, fontStyle:'italic', opacity:0.75 }}>Fix: {r.mitigation}</div>}
+    <div style={{ background:st.bg, borderLeft:`3px solid ${st.border}`, borderRadius:6, padding:'10px 12px', marginBottom:8, fontSize:12, lineHeight:1.5 }}>
+      <div style={{ fontWeight:600, color:st.color }}>{st.icon} {r.title}</div>
+      <div style={{ marginTop:2, color:'#aaa' }}>{r.description}</div>
+      {r.mitigation && <div style={{ marginTop:4, color:'#777', fontStyle:'italic' }}>Fix: {r.mitigation}</div>}
     </div>
   );
 }
@@ -32,7 +34,7 @@ function RiskBadge({ r }: { r: RiskFlag }) {
 export function DealOverviewPanel({ input, rehab, deal, risks }: { input:PropertyInput; rehab:RehabResult; deal:DealResult; risks:RiskFlag[] }) {
   const isFlip = input.exitStrategy === 'flip';
   const score = deal.dealScore;
-  const scoreColor = score.score>=70 ? '#16a34a' : score.score>=45 ? '#d97706' : '#dc2626';
+  const scoreColor = score.score>=70 ? '#22c55e' : score.score>=45 ? '#BF5700' : '#CC0000';
   const arc = (score.score / 100) * 201.1;
 
   const flipRows = [
@@ -45,6 +47,7 @@ export function DealOverviewPanel({ input, rehab, deal, risks }: { input:Propert
     { l:'− Realtor + sell closing', v:fmt(deal.texasCosts.realtorCommission + deal.texasCosts.titleEscrowSell), t:'neg' },
     { l:'Net profit', v:fmt(deal.flip?.netProfit ?? 0), t:'total' },
   ];
+
   const rentalRows = [
     { l:'Gross annual rent', v:fmt((deal.rental?.grossMonthlyRent??0)*12), t:'pos' },
     { l:'− Operating expenses', v:fmt(deal.rental?.operatingExpenses??0), t:'neg' },
@@ -52,26 +55,30 @@ export function DealOverviewPanel({ input, rehab, deal, risks }: { input:Propert
     { l:'− Annual debt service', v:fmt(deal.rental?.annualDebtService??0), t:'neg' },
     { l:'= Annual cash flow', v:fmt(deal.rental?.annualCashFlow??0), t:'total' },
   ];
-  const rows = isFlip ? flipRows : rentalRows;
 
-  const rowBg: Record<string,string> = { pos:'#f0fdf4', neg:'#fef2f2', neutral:'#f9fafb', total:'#f3f4f6' };
-  const rowColor: Record<string,string> = { pos:'#14532d', neg:'#7f1d1d', neutral:'#111', total:'#111' };
+  const rows = isFlip ? flipRows : rentalRows;
+  const rowStyle: Record<string, React.CSSProperties> = {
+    pos:     { background:'#001a08', color:'#22c55e' },
+    neg:     { background:'#1a0000', color:'#ff6b6b' },
+    neutral: { background:'#1a1a1a', color:'#f5f5f5' },
+    total:   { background:'#111', border:'1px solid #333', color:'#f5f5f5', fontWeight:700 },
+  };
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
       {/* Score */}
-      <div style={{ display:'flex', alignItems:'center', gap:20, background:'#fff', border:'1px solid #e5e7eb', borderRadius:12, padding:20 }}>
+      <div style={{ display:'flex', alignItems:'center', gap:20, background:'#1a1a1a', border:'1px solid #2a2a2a', borderRadius:12, padding:20 }}>
         <div style={{ position:'relative', width:80, height:80, flexShrink:0 }}>
           <svg viewBox="0 0 80 80" style={{ width:80, height:80, transform:'rotate(-90deg)' }}>
-            <circle cx="40" cy="40" r="32" fill="none" stroke="#f3f4f6" strokeWidth="7" />
+            <circle cx="40" cy="40" r="32" fill="none" stroke="#222" strokeWidth="7" />
             <circle cx="40" cy="40" r="32" fill="none" stroke={scoreColor} strokeWidth="7" strokeDasharray={`${arc} 201.1`} strokeLinecap="round" />
           </svg>
-          <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, fontWeight:600, color:scoreColor }}>{score.score}</div>
+          <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, fontWeight:700, color:scoreColor }}>{score.score}</div>
         </div>
         <div>
-          <div style={{ fontSize:20, fontWeight:600, color:scoreColor, marginBottom:4 }}>{score.label} — Grade {score.grade}</div>
-          <div style={{ fontSize:13, color:'#6b7280', lineHeight:1.6 }}>{score.explanation}</div>
-          <div style={{ fontSize:11, color:'#9ca3af', marginTop:4 }}>{rehab.regionLabel} · {input.condition} · {input.sqft.toLocaleString()} sqft · built {input.yearBuilt}</div>
+          <div style={{ fontSize:20, fontWeight:700, color:scoreColor, marginBottom:4 }}>{score.label} — Grade {score.grade}</div>
+          <div style={{ fontSize:13, color:'#888', lineHeight:1.6 }}>{score.explanation}</div>
+          <div style={{ fontSize:11, color:'#555', marginTop:4 }}>{rehab.regionLabel} · {input.condition} · {input.sqft.toLocaleString()} sqft · built {input.yearBuilt}</div>
         </div>
       </div>
 
@@ -97,17 +104,18 @@ export function DealOverviewPanel({ input, rehab, deal, risks }: { input:Propert
       {/* Waterfall + Risks */}
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
         <div>
-          <div style={{ fontSize:13, fontWeight:500, marginBottom:10 }}>Profit waterfall</div>
+          <div style={{ fontSize:13, fontWeight:600, color:'#BF5700', marginBottom:10, textTransform:'uppercase', letterSpacing:'0.06em' }}>Profit waterfall</div>
           <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
             {rows.map((row,i) => (
-              <div key={i} style={{ display:'flex', justifyContent:'space-between', padding:'8px 12px', borderRadius:6, background:rowBg[row.t], color:rowColor[row.t], fontWeight:row.t==='total'?600:400, fontSize:13 }}>
-                <span>{row.l}</span><span style={{ fontFamily:'monospace' }}>{row.v}</span>
+              <div key={i} style={{ display:'flex', justifyContent:'space-between', padding:'8px 12px', borderRadius:6, fontSize:13, ...rowStyle[row.t] }}>
+                <span>{row.l}</span>
+                <span style={{ fontFamily:'monospace' }}>{row.v}</span>
               </div>
             ))}
           </div>
         </div>
         <div>
-          <div style={{ fontSize:13, fontWeight:500, marginBottom:10 }}>Risk flags ({risks.length})</div>
+          <div style={{ fontSize:13, fontWeight:600, color:'#BF5700', marginBottom:10, textTransform:'uppercase', letterSpacing:'0.06em' }}>Risk flags ({risks.length})</div>
           {risks.map(r => <RiskBadge key={r.id} r={r} />)}
         </div>
       </div>
