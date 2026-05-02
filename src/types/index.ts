@@ -21,6 +21,8 @@ export interface PropertyInput {
   hardMoneyPoints: number;
   ltv: number;
   hasFoundationIssues?: boolean;
+  address?: string;
+  city?: string;
   customRehabItems?: Partial<RehabLineItems>;
   finishLevel?: FinishLevel;
   lotSize?: number;
