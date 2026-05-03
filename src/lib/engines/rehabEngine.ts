@@ -163,5 +163,38 @@ export function calculateRehab(input: PropertyInput): RehabResult {
 }
 
 export function getBudgetAllocationTargets(strategy: string): Record<string, number> {
-  const allocations: Record<string, Record<string, number>> = {
+  const flip: Record<string, number> = {
+    Kitchen: 28,
+    Bathrooms: 20,
+    Flooring: 14,
+    'Roof/Structural': 10,
+    'HVAC/Mech': 8,
+    Paint: 7,
+    Landscaping: 7,
+    Windows: 3,
+    Doors: 3,
+  };
+  const str: Record<string, number> = {
+    Kitchen: 26,
+    Bathrooms: 18,
+    'Furnishing/Decor': 16,
+    Flooring: 12,
+    'Outdoor/Amenities': 10,
+    Paint: 8,
+    'HVAC/Electrical': 6,
+    Landscaping: 4,
+  };
+  const ltr: Record<string, number> = {
+    Flooring: 22,
+    'HVAC/Roof': 22,
+    Kitchen: 18,
+    Bathrooms: 15,
+    Electrical: 8,
+    Paint: 8,
+    Plumbing: 4,
+    Landscaping: 3,
+  };
+  const allocations: Record<string, Record<string, number>> = { flip, str, ltr };
+  return allocations[strategy] || allocations.flip;
+}
     flip: { Kitchen:28, Bathrooms:20, Flooring:14, 'Roof/Structu
