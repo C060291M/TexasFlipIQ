@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import type { PropertyInput, RehabResult } from '@/types';
 import { calculateRehab } from '@/lib/engines/rehabEngine';
 import { calculateDeal } from '@/lib/engines/dealCalculator';
@@ -50,13 +50,18 @@ export default function Dashboard() {
 
   const rehab = useMemo(() => calculateRehab(input), [input]);
 
-  useMemo(() => {
+  // ── KEY FIX: useEffect (not useMemo) so foundation checkbox
+  // and condition changes correctly update the toggle list
+  useEffect(() => {
     const keys = Object.keys(rehab.lineItems).filter(
       k => (rehab.lineItems as Record<string, number>)[k] > 0
     );
     setEnabledItems(prev => {
       const next: Record<string, boolean> = {};
-      keys.forEach(k => { next[k] = prev[k] !== undefined ? prev[k] : true; });
+      keys.forEach(k => {
+        // Keep existing toggle state if item was already known
+        next[k] = prev[k] !== undefined ? prev[k] : true;
+      });
       return next;
     });
   }, [rehab]);
@@ -69,7 +74,12 @@ export default function Dashboard() {
       }
     }
     const total = Object.values(items).reduce((a, b) => a + b, 0);
-    return { ...rehab, lineItems: items, total: Math.round(total), perSqft: Math.round(total / input.sqft) };
+    return {
+      ...rehab,
+      lineItems: items,
+      total: Math.round(total),
+      perSqft: Math.round(total / input.sqft),
+    };
   }, [rehab, enabledItems, input.sqft]);
 
   const deal  = useMemo(() => calculateDeal(input, adjustedRehab), [input, adjustedRehab]);
@@ -86,81 +96,75 @@ export default function Dashboard() {
     ? `${input.address}${input.city ? ', ' + input.city : ''} ${input.zipCode}`
     : input.city ? `${input.city}, TX ${input.zipCode}` : `TX ${input.zipCode}`;
 
-  // ── PDF Export ─────────────────────────────────────────────
+  // ── PDF Export ────────────────────────────────────────────
   const exportPDF = async () => {
     setExporting(true);
     try {
       const { jsPDF } = await import('jspdf');
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-
       const W = 210;
       const margin = 18;
       let y = 0;
 
-      // ── Header ──────────────────────────────────────────────
+      // Header
       doc.setFillColor(31, 58, 95);
       doc.rect(0, 0, W, 38, 'F');
-
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(22);
       doc.setFont('helvetica', 'bold');
       doc.text('TexasFlipIQ', margin, 16);
-
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(168, 191, 218);
       doc.text('Deal Analysis Report', margin, 24);
       doc.text(new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' }), margin, 31);
 
-      // Deal score badge
-      const scoreR = score.score >= 70 ? [46,196,182] : score.score >= 45 ? [224,123,42] : [192,57,43];
-      doc.setFillColor(scoreR[0], scoreR[1], scoreR[2]);
-      doc.roundedRect(W - 60, 8, 44, 22, 4, 4, 'F');
+      const sc = score.score >= 70 ? [46,196,182] : score.score >= 45 ? [224,123,42] : [192,57,43];
+      doc.setFillColor(sc[0], sc[1], sc[2]);
+      doc.roundedRect(W - 62, 8, 46, 22, 4, 4, 'F');
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(16);
       doc.setFont('helvetica', 'bold');
-      doc.text(`${score.score}/100`, W - 56, 20);
+      doc.text(`${score.score}/100`, W - 58, 20);
       doc.setFontSize(8);
-      doc.text(`Grade ${score.grade} — ${score.label}`, W - 56, 26);
+      doc.text(`Grade ${score.grade} — ${score.label}`, W - 58, 26);
 
       y = 48;
 
-      // ── Property address ─────────────────────────────────────
+      // Address
       doc.setTextColor(31, 58, 95);
       doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
       doc.text(addressLine || 'Property Analysis', margin, y);
       y += 6;
-
       doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(107, 124, 147);
-      doc.text(`${adjustedRehab.regionLabel} · ${input.condition} rehab · ${input.sqft.toLocaleString()} sqft · Built ${input.yearBuilt} · ${input.exitStrategy.toUpperCase()} strategy`, margin, y);
+      doc.text(`${adjustedRehab.regionLabel} · ${input.condition} rehab · ${input.sqft.toLocaleString()} sqft · Built ${input.yearBuilt} · ${input.exitStrategy.toUpperCase()}`, margin, y);
       y += 10;
 
-      // ── Divider ──────────────────────────────────────────────
+      // Divider
       doc.setDrawColor(221, 227, 236);
-      doc.setLineWidth(0.5);
       doc.line(margin, y, W - margin, y);
       y += 8;
 
-      // ── Key metrics grid ─────────────────────────────────────
+      // Metrics
       doc.setFontSize(8);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(107, 124, 147);
       doc.text('KEY METRICS', margin, y);
       y += 5;
 
-      const isFlip  = input.exitStrategy === 'flip';
+      const isFlip = input.exitStrategy === 'flip';
       const metrics = isFlip ? [
-        ['Purchase Price',   fmt(input.purchasePrice)],
-        ['ARV',              fmt(input.arv)],
-        ['Rehab Cost',       fmt(adjustedRehab.total)],
-        ['Net Profit',       fmt(deal.flip?.netProfit ?? 0)],
-        ['ROI',              pct(deal.flip?.roi ?? 0)],
-        ['Annualized ROI',   pct(deal.flip?.annualizedRoi ?? 0)],
-        ['MAO (70% rule)',   fmt(deal.flip?.maxAllowableOffer ?? 0)],
-        ['Total Project',    fmt(deal.flip?.totalProjectCost ?? 0)],
+        ['Purchase Price', fmt(input.purchasePrice)],
+        ['ARV',            fmt(input.arv)],
+        ['Rehab Cost',     fmt(adjustedRehab.total)],
+        ['Net Profit',     fmt(deal.flip?.netProfit ?? 0)],
+        ['ROI',            pct(deal.flip?.roi ?? 0)],
+        ['Annualized ROI', pct(deal.flip?.annualizedRoi ?? 0)],
+        ['MAO (70% rule)', fmt(deal.flip?.maxAllowableOffer ?? 0)],
+        ['Total Project',  fmt(deal.flip?.totalProjectCost ?? 0)],
       ] : [
         ['Purchase Price',   fmt(input.purchasePrice)],
         ['ARV',              fmt(input.arv)],
@@ -172,95 +176,83 @@ export default function Dashboard() {
         ['DSCR',             `${deal.rental?.dscr?.toFixed(2) ?? '--'}x`],
       ];
 
-      const colW  = (W - margin * 2) / 4;
-      const boxH  = 18;
-
+      const colW = (W - margin * 2) / 4;
+      const boxH = 18;
       metrics.forEach(([label, value], i) => {
         const col = i % 4;
         const row = Math.floor(i / 4);
         const x   = margin + col * colW;
         const yy  = y + row * (boxH + 3);
-
         doc.setFillColor(245, 246, 248);
         doc.roundedRect(x, yy, colW - 2, boxH, 2, 2, 'F');
-
         doc.setFontSize(7);
         doc.setFont('helvetica', 'normal');
         doc.setTextColor(107, 124, 147);
         doc.text(label, x + 3, yy + 5);
-
         doc.setFontSize(11);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(31, 58, 95);
         doc.text(value, x + 3, yy + 13);
       });
-
       y += Math.ceil(metrics.length / 4) * (boxH + 3) + 8;
 
-      // ── Profit waterfall ──────────────────────────────────────
+      // Waterfall
       doc.setDrawColor(221, 227, 236);
       doc.line(margin, y, W - margin, y);
       y += 6;
-
       doc.setFontSize(8);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(107, 124, 147);
       doc.text('PROFIT WATERFALL', margin, y);
       y += 5;
 
-      const waterfallRows = isFlip ? [
-        { l: 'ARV',                         v: fmt(input.arv),                                                         pos: true  },
-        { l: '− Purchase price',            v: fmt(input.purchasePrice),                                               pos: false },
-        { l: '− Rehab cost',               v: fmt(adjustedRehab.total),                                               pos: false },
-        { l: '− Carrying costs',           v: fmt(deal.loan.totalCarryingCost),                                       pos: false },
-        { l: '− Closing costs (buy)',       v: fmt(deal.texasCosts.titleEscrowBuy),                                    pos: false },
-        { l: '− Property tax',             v: fmt(deal.texasCosts.propertyTax),                                       pos: false },
-        { l: '− Realtor + sell closing',   v: fmt(deal.texasCosts.realtorCommission + deal.texasCosts.titleEscrowSell), pos: false },
-        { l: 'NET PROFIT',                 v: fmt(deal.flip?.netProfit ?? 0),                                         pos: true, bold: true },
+      const rows = isFlip ? [
+        { l:'ARV',                        v:fmt(input.arv),                                                              pos:true  },
+        { l:'− Purchase price',           v:fmt(input.purchasePrice),                                                   pos:false },
+        { l:'− Rehab cost',              v:fmt(adjustedRehab.total),                                                    pos:false },
+        { l:'− Carrying costs',          v:fmt(deal.loan.totalCarryingCost),                                            pos:false },
+        { l:'− Closing costs (buy)',      v:fmt(deal.texasCosts.titleEscrowBuy),                                         pos:false },
+        { l:'− Property tax',            v:fmt(deal.texasCosts.propertyTax),                                            pos:false },
+        { l:'− Realtor + sell closing',  v:fmt(deal.texasCosts.realtorCommission+deal.texasCosts.titleEscrowSell),      pos:false },
+        { l:'NET PROFIT',                v:fmt(deal.flip?.netProfit ?? 0),                                              pos:true, bold:true },
       ] : [
-        { l: 'Gross annual rent',           v: fmt((deal.rental?.grossMonthlyRent ?? 0) * 12),  pos: true  },
-        { l: '− Operating expenses',       v: fmt(deal.rental?.operatingExpenses ?? 0),         pos: false },
-        { l: '= NOI',                      v: fmt(deal.rental?.noi ?? 0),                       pos: true  },
-        { l: '− Annual debt service',      v: fmt(deal.rental?.annualDebtService ?? 0),         pos: false },
-        { l: 'ANNUAL CASH FLOW',           v: fmt(deal.rental?.annualCashFlow ?? 0),            pos: true, bold: true },
+        { l:'Gross annual rent',          v:fmt((deal.rental?.grossMonthlyRent??0)*12), pos:true  },
+        { l:'− Operating expenses',      v:fmt(deal.rental?.operatingExpenses??0),     pos:false },
+        { l:'= NOI',                     v:fmt(deal.rental?.noi??0),                   pos:true  },
+        { l:'− Annual debt service',     v:fmt(deal.rental?.annualDebtService??0),     pos:false },
+        { l:'ANNUAL CASH FLOW',          v:fmt(deal.rental?.annualCashFlow??0),        pos:true, bold:true },
       ];
 
-      waterfallRows.forEach(row => {
-        if ((row as any).bold) {
+      rows.forEach((row: any) => {
+        if (row.bold) {
           doc.setFillColor(31, 58, 95);
           doc.rect(margin, y - 4, W - margin * 2, 8, 'F');
           doc.setTextColor(255, 255, 255);
           doc.setFont('helvetica', 'bold');
         } else {
-          doc.setFillColor(row.pos ? 232 : 253, row.pos ? 250 : 235, row.pos ? 249 : 234);
+          doc.setFillColor(row.pos?232:253, row.pos?250:235, row.pos?249:234);
           doc.rect(margin, y - 4, W - margin * 2, 8, 'F');
-          doc.setTextColor(row.pos ? 26 : 146, row.pos ? 138 : 43, row.pos ? 130 : 33);
+          doc.setTextColor(row.pos?26:146, row.pos?138:43, row.pos?130:33);
           doc.setFont('helvetica', 'normal');
         }
         doc.setFontSize(9);
         doc.text(row.l, margin + 3, y + 1);
-        doc.text(row.v, W - margin - 3, y + 1, { align: 'right' });
+        doc.text(row.v, W - margin - 3, y + 1, { align:'right' });
         y += 9;
       });
-
       y += 6;
 
-      // ── Rehab line items ──────────────────────────────────────
+      // Rehab items
       doc.setDrawColor(221, 227, 236);
       doc.line(margin, y, W - margin, y);
       y += 6;
-
       doc.setFontSize(8);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(107, 124, 147);
       doc.text('REHAB BREAKDOWN', margin, y);
       y += 5;
 
-      const activeLineItems = Object.entries(adjustedRehab.lineItems)
-        .filter(([, v]) => v > 0)
-        .sort((a, b) => b[1] - a[1]);
-
-      const labelMap: Record<string, string> = {
+      const labelMap: Record<string,string> = {
         kitchen:'Kitchen', bathrooms:'Bathrooms', flooring:'Flooring',
         roof:'Roof', hvac:'HVAC', electrical:'Electrical', plumbing:'Plumbing',
         paint:'Paint', foundation:'Foundation', landscaping:'Landscaping',
@@ -268,8 +260,12 @@ export default function Dashboard() {
         hotTub:'Hot Tub', contingency:'Contingency',
       };
 
+      const activeItems = Object.entries(adjustedRehab.lineItems)
+        .filter(([,v]) => v > 0)
+        .sort((a,b) => b[1]-a[1]);
+
       const colW2 = (W - margin * 2) / 3;
-      activeLineItems.forEach(([key, val], i) => {
+      activeItems.forEach(([key, val], i) => {
         const col = i % 3;
         const row = Math.floor(i / 3);
         const x   = margin + col * colW2;
@@ -282,26 +278,23 @@ export default function Dashboard() {
         doc.text(labelMap[key] || key, x + 2, yy + 2);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(31, 58, 95);
-        doc.text(fmt(val), x + colW2 - 4, yy + 2, { align: 'right' });
+        doc.text(fmt(val), x + colW2 - 4, yy + 2, { align:'right' });
       });
+      y += Math.ceil(activeItems.length / 3) * 10 + 6;
 
-      y += Math.ceil(activeLineItems.length / 3) * 10 + 6;
-
-      // ── Risk flags ────────────────────────────────────────────
+      // Risk flags
       if (y < 240) {
         doc.setDrawColor(221, 227, 236);
         doc.line(margin, y, W - margin, y);
         y += 6;
-
         doc.setFontSize(8);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(107, 124, 147);
         doc.text('RISK FLAGS', margin, y);
         y += 5;
-
         risks.slice(0, 4).forEach(risk => {
-          const rColor = risk.severity === 'danger' ? [192,57,43] : risk.severity === 'warning' ? [224,123,42] : [41,128,185];
-          doc.setFillColor(rColor[0], rColor[1], rColor[2]);
+          const rc = risk.severity==='danger'?[192,57,43]:risk.severity==='warning'?[224,123,42]:[41,128,185];
+          doc.setFillColor(rc[0], rc[1], rc[2]);
           doc.rect(margin, y - 3, 2, 8, 'F');
           doc.setFillColor(245, 246, 248);
           doc.rect(margin + 2, y - 3, W - margin * 2 - 2, 8, 'F');
@@ -313,24 +306,22 @@ export default function Dashboard() {
         });
       }
 
-      // ── Footer ────────────────────────────────────────────────
+      // Footer
       doc.setFillColor(31, 58, 95);
       doc.rect(0, 282, W, 15, 'F');
       doc.setTextColor(168, 191, 218);
       doc.setFontSize(7);
       doc.setFont('helvetica', 'normal');
-      doc.text('Generated by TexasFlipIQ — For investment analysis purposes only. Not financial advice.', margin, 291);
-      doc.text(`${score.label} · Deal Score ${score.score}/100`, W - margin, 291, { align: 'right' });
+      doc.text('Generated by TexasFlipIQ — For investment analysis only. Not financial advice.', margin, 291);
+      doc.text(`Deal Score ${score.score}/100 · ${score.label}`, W - margin, 291, { align:'right' });
 
-      // ── Save ─────────────────────────────────────────────────
       const filename = input.address
-        ? `TexasFlipIQ_${input.address.replace(/\s+/g, '_')}.pdf`
-        : `TexasFlipIQ_Deal_${input.zipCode}.pdf`;
-
+        ? `TexasFlipIQ_${input.address.replace(/\s+/g,'_')}.pdf`
+        : `TexasFlipIQ_${input.zipCode}.pdf`;
       doc.save(filename);
 
     } catch (err) {
-      console.error('PDF export error:', err);
+      console.error('PDF error:', err);
       alert('PDF export failed. Please try again.');
     } finally {
       setExporting(false);
@@ -363,15 +354,12 @@ export default function Dashboard() {
               ⚠ {warningCount} warnings
             </span>
           )}
-
-          {/* PDF Export Button */}
           <button
             onClick={exportPDF}
             disabled={exporting}
-            style={{ fontSize:11, fontWeight:600, padding:'6px 14px', borderRadius:8, border:'1px solid #2EC4B6', background: exporting ? '#1a4a3a' : '#1a3d3a', color:'#2EC4B6', cursor: exporting ? 'not-allowed' : 'pointer' }}>
+            style={{ fontSize:12, fontWeight:700, padding:'7px 16px', borderRadius:8, border:'2px solid #2EC4B6', background:'#1a4a40', color:'#2EC4B6', cursor:exporting?'not-allowed':'pointer', display:'flex', alignItems:'center', gap:6 }}>
             {exporting ? '⏳ Exporting...' : '📄 Export PDF'}
           </button>
-
           <span style={{ fontSize:11, fontWeight:700, padding:'4px 14px', borderRadius:20, border:`2px solid ${scoreColor}`, color:'#fff', background:score.score>=70?'#1a8a82':score.score>=45?'#b5601a':'#922b21' }}>
             Deal Score {score.score}/100 ({score.grade})
           </span>
@@ -398,11 +386,11 @@ export default function Dashboard() {
               <span>
                 <strong style={{ color:'#1a8a82' }}>⚙ Rehab scope adjusted — </strong>
                 <span style={{ color:'#1F3A5F' }}>
-                  Using <strong>{fmt(adjustedRehab.total)}</strong> adjusted rehab (vs <strong>{fmt(rehab.total)}</strong> full estimate). All calculations reflect active items only.
+                  Using <strong>{fmt(adjustedRehab.total)}</strong> adjusted rehab (vs <strong>{fmt(rehab.total)}</strong> full). All calculations updated.
                 </span>
               </span>
               <button
-                onClick={() => setEnabledItems(prev => Object.fromEntries(Object.keys(prev).map(k => [k, true])))}
+                onClick={() => setEnabledItems(prev => Object.fromEntries(Object.keys(prev).map(k => [k,true])))}
                 style={{ fontSize:11, padding:'4px 12px', border:'1px solid #2EC4B6', borderRadius:6, background:'#fff', color:'#1a8a82', cursor:'pointer', fontWeight:600, whiteSpace:'nowrap', marginLeft:16 }}>
                 Reset all
               </button>
@@ -410,9 +398,9 @@ export default function Dashboard() {
           )}
 
           {activeTab==='overview'  && <DealOverviewPanel input={input} rehab={adjustedRehab} fullRehab={rehab} deal={deal} risks={risks} />}
-          {activeTab==='rehab'     && <RehabBreakdownPanel input={input} rehab={rehab} enabledItems={enabledItems} onToggle={key => setEnabledItems(prev => ({ ...prev, [key]: !prev[key] }))} onSetEnabled={setEnabledItems} />}
+          {activeTab==='rehab'     && <RehabBreakdownPanel input={input} rehab={rehab} enabledItems={enabledItems} onToggle={key => setEnabledItems(prev => ({ ...prev, [key]:!prev[key] }))} onSetEnabled={setEnabledItems} />}
           {activeTab==='strategy'  && <StrategyPanel input={input} rehab={adjustedRehab} deal={deal} recommendations={recs} />}
-          {activeTab==='comps'     && <CompsPanel input={input} comps={comps} risks={risks} />}
+          {activeTab==='comps'     && <CompsPanel input={input} comps={comps} risks={risks} onUpdateArv={arv => updateInput('arv', arv)} />}
         </main>
       </div>
     </div>
