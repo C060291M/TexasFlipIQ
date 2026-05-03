@@ -33,10 +33,14 @@ const DEFAULT_INPUT: PropertyInput = {
   hasFoundationIssues: false,
 };
 
+const fmt = (n: number) => '$' + Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
+const pct = (n: number) => (Math.round(n * 10) / 10) + '%';
+
 export default function Dashboard() {
-  const [input, setInput]         = useState<PropertyInput>(DEFAULT_INPUT);
-  const [activeTab, setActiveTab] = useState<TabId>('overview');
+  const [input, setInput]               = useState<PropertyInput>(DEFAULT_INPUT);
+  const [activeTab, setActiveTab]       = useState<TabId>('overview');
   const [enabledItems, setEnabledItems] = useState<Record<string, boolean>>({});
+  const [exporting, setExporting]       = useState(false);
 
   const updateInput = useCallback(
     (field: keyof PropertyInput, value: PropertyInput[keyof PropertyInput]) =>
@@ -44,10 +48,8 @@ export default function Dashboard() {
     []
   );
 
-  // Full rehab (all items)
   const rehab = useMemo(() => calculateRehab(input), [input]);
 
-  // When rehab changes, reset enabled items to all-on
   useMemo(() => {
     const keys = Object.keys(rehab.lineItems).filter(
       k => (rehab.lineItems as Record<string, number>)[k] > 0
@@ -59,24 +61,17 @@ export default function Dashboard() {
     });
   }, [rehab]);
 
-  // Adjusted rehab — only active toggles count toward total
   const adjustedRehab = useMemo((): RehabResult => {
-    const adjustedItems = { ...rehab.lineItems };
-    for (const key of Object.keys(adjustedItems)) {
+    const items = { ...rehab.lineItems };
+    for (const key of Object.keys(items)) {
       if (enabledItems[key] === false) {
-        (adjustedItems as Record<string, number>)[key] = 0;
+        (items as Record<string, number>)[key] = 0;
       }
     }
-    const newTotal = Object.values(adjustedItems).reduce((a, b) => a + b, 0);
-    return {
-      ...rehab,
-      lineItems: adjustedItems,
-      total: Math.round(newTotal),
-      perSqft: Math.round(newTotal / input.sqft),
-    };
+    const total = Object.values(items).reduce((a, b) => a + b, 0);
+    return { ...rehab, lineItems: items, total: Math.round(total), perSqft: Math.round(total / input.sqft) };
   }, [rehab, enabledItems, input.sqft]);
 
-  // All downstream calculations use adjustedRehab
   const deal  = useMemo(() => calculateDeal(input, adjustedRehab), [input, adjustedRehab]);
   const risks = useMemo(() => analyzeRisks(input, adjustedRehab, deal), [input, adjustedRehab, deal]);
   const comps = useMemo(() => generateComps(input), [input]);
@@ -84,12 +79,263 @@ export default function Dashboard() {
 
   const dangerCount  = risks.filter(r => r.severity === 'danger').length;
   const warningCount = risks.filter(r => r.severity === 'warning').length;
-  const score = deal.dealScore;
-  const scoreColor = score.score>=70?'#2EC4B6':score.score>=45?'#E07B2A':'#C0392B';
+  const score        = deal.dealScore;
+  const scoreColor   = score.score >= 70 ? '#2EC4B6' : score.score >= 45 ? '#E07B2A' : '#C0392B';
 
   const addressLine = input.address
-    ? `${input.address}${input.city ? ', '+input.city : ''} ${input.zipCode}`
+    ? `${input.address}${input.city ? ', ' + input.city : ''} ${input.zipCode}`
     : input.city ? `${input.city}, TX ${input.zipCode}` : `TX ${input.zipCode}`;
+
+  // ── PDF Export ─────────────────────────────────────────────
+  const exportPDF = async () => {
+    setExporting(true);
+    try {
+      const { jsPDF } = await import('jspdf');
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+      const W = 210;
+      const margin = 18;
+      let y = 0;
+
+      // ── Header ──────────────────────────────────────────────
+      doc.setFillColor(31, 58, 95);
+      doc.rect(0, 0, W, 38, 'F');
+
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(22);
+      doc.setFont('helvetica', 'bold');
+      doc.text('TexasFlipIQ', margin, 16);
+
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(168, 191, 218);
+      doc.text('Deal Analysis Report', margin, 24);
+      doc.text(new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' }), margin, 31);
+
+      // Deal score badge
+      const scoreR = score.score >= 70 ? [46,196,182] : score.score >= 45 ? [224,123,42] : [192,57,43];
+      doc.setFillColor(scoreR[0], scoreR[1], scoreR[2]);
+      doc.roundedRect(W - 60, 8, 44, 22, 4, 4, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${score.score}/100`, W - 56, 20);
+      doc.setFontSize(8);
+      doc.text(`Grade ${score.grade} — ${score.label}`, W - 56, 26);
+
+      y = 48;
+
+      // ── Property address ─────────────────────────────────────
+      doc.setTextColor(31, 58, 95);
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text(addressLine || 'Property Analysis', margin, y);
+      y += 6;
+
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(107, 124, 147);
+      doc.text(`${adjustedRehab.regionLabel} · ${input.condition} rehab · ${input.sqft.toLocaleString()} sqft · Built ${input.yearBuilt} · ${input.exitStrategy.toUpperCase()} strategy`, margin, y);
+      y += 10;
+
+      // ── Divider ──────────────────────────────────────────────
+      doc.setDrawColor(221, 227, 236);
+      doc.setLineWidth(0.5);
+      doc.line(margin, y, W - margin, y);
+      y += 8;
+
+      // ── Key metrics grid ─────────────────────────────────────
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(107, 124, 147);
+      doc.text('KEY METRICS', margin, y);
+      y += 5;
+
+      const isFlip  = input.exitStrategy === 'flip';
+      const metrics = isFlip ? [
+        ['Purchase Price',   fmt(input.purchasePrice)],
+        ['ARV',              fmt(input.arv)],
+        ['Rehab Cost',       fmt(adjustedRehab.total)],
+        ['Net Profit',       fmt(deal.flip?.netProfit ?? 0)],
+        ['ROI',              pct(deal.flip?.roi ?? 0)],
+        ['Annualized ROI',   pct(deal.flip?.annualizedRoi ?? 0)],
+        ['MAO (70% rule)',   fmt(deal.flip?.maxAllowableOffer ?? 0)],
+        ['Total Project',    fmt(deal.flip?.totalProjectCost ?? 0)],
+      ] : [
+        ['Purchase Price',   fmt(input.purchasePrice)],
+        ['ARV',              fmt(input.arv)],
+        ['Rehab Cost',       fmt(adjustedRehab.total)],
+        ['Monthly Rent',     fmt(deal.rental?.grossMonthlyRent ?? 0)],
+        ['Annual Cash Flow', fmt(deal.rental?.annualCashFlow ?? 0)],
+        ['Cash-on-Cash',     pct(deal.rental?.cashOnCashReturn ?? 0)],
+        ['Cap Rate',         pct(deal.rental?.capRate ?? 0)],
+        ['DSCR',             `${deal.rental?.dscr?.toFixed(2) ?? '--'}x`],
+      ];
+
+      const colW  = (W - margin * 2) / 4;
+      const boxH  = 18;
+
+      metrics.forEach(([label, value], i) => {
+        const col = i % 4;
+        const row = Math.floor(i / 4);
+        const x   = margin + col * colW;
+        const yy  = y + row * (boxH + 3);
+
+        doc.setFillColor(245, 246, 248);
+        doc.roundedRect(x, yy, colW - 2, boxH, 2, 2, 'F');
+
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(107, 124, 147);
+        doc.text(label, x + 3, yy + 5);
+
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(31, 58, 95);
+        doc.text(value, x + 3, yy + 13);
+      });
+
+      y += Math.ceil(metrics.length / 4) * (boxH + 3) + 8;
+
+      // ── Profit waterfall ──────────────────────────────────────
+      doc.setDrawColor(221, 227, 236);
+      doc.line(margin, y, W - margin, y);
+      y += 6;
+
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(107, 124, 147);
+      doc.text('PROFIT WATERFALL', margin, y);
+      y += 5;
+
+      const waterfallRows = isFlip ? [
+        { l: 'ARV',                         v: fmt(input.arv),                                                         pos: true  },
+        { l: '− Purchase price',            v: fmt(input.purchasePrice),                                               pos: false },
+        { l: '− Rehab cost',               v: fmt(adjustedRehab.total),                                               pos: false },
+        { l: '− Carrying costs',           v: fmt(deal.loan.totalCarryingCost),                                       pos: false },
+        { l: '− Closing costs (buy)',       v: fmt(deal.texasCosts.titleEscrowBuy),                                    pos: false },
+        { l: '− Property tax',             v: fmt(deal.texasCosts.propertyTax),                                       pos: false },
+        { l: '− Realtor + sell closing',   v: fmt(deal.texasCosts.realtorCommission + deal.texasCosts.titleEscrowSell), pos: false },
+        { l: 'NET PROFIT',                 v: fmt(deal.flip?.netProfit ?? 0),                                         pos: true, bold: true },
+      ] : [
+        { l: 'Gross annual rent',           v: fmt((deal.rental?.grossMonthlyRent ?? 0) * 12),  pos: true  },
+        { l: '− Operating expenses',       v: fmt(deal.rental?.operatingExpenses ?? 0),         pos: false },
+        { l: '= NOI',                      v: fmt(deal.rental?.noi ?? 0),                       pos: true  },
+        { l: '− Annual debt service',      v: fmt(deal.rental?.annualDebtService ?? 0),         pos: false },
+        { l: 'ANNUAL CASH FLOW',           v: fmt(deal.rental?.annualCashFlow ?? 0),            pos: true, bold: true },
+      ];
+
+      waterfallRows.forEach(row => {
+        if ((row as any).bold) {
+          doc.setFillColor(31, 58, 95);
+          doc.rect(margin, y - 4, W - margin * 2, 8, 'F');
+          doc.setTextColor(255, 255, 255);
+          doc.setFont('helvetica', 'bold');
+        } else {
+          doc.setFillColor(row.pos ? 232 : 253, row.pos ? 250 : 235, row.pos ? 249 : 234);
+          doc.rect(margin, y - 4, W - margin * 2, 8, 'F');
+          doc.setTextColor(row.pos ? 26 : 146, row.pos ? 138 : 43, row.pos ? 130 : 33);
+          doc.setFont('helvetica', 'normal');
+        }
+        doc.setFontSize(9);
+        doc.text(row.l, margin + 3, y + 1);
+        doc.text(row.v, W - margin - 3, y + 1, { align: 'right' });
+        y += 9;
+      });
+
+      y += 6;
+
+      // ── Rehab line items ──────────────────────────────────────
+      doc.setDrawColor(221, 227, 236);
+      doc.line(margin, y, W - margin, y);
+      y += 6;
+
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(107, 124, 147);
+      doc.text('REHAB BREAKDOWN', margin, y);
+      y += 5;
+
+      const activeLineItems = Object.entries(adjustedRehab.lineItems)
+        .filter(([, v]) => v > 0)
+        .sort((a, b) => b[1] - a[1]);
+
+      const labelMap: Record<string, string> = {
+        kitchen:'Kitchen', bathrooms:'Bathrooms', flooring:'Flooring',
+        roof:'Roof', hvac:'HVAC', electrical:'Electrical', plumbing:'Plumbing',
+        paint:'Paint', foundation:'Foundation', landscaping:'Landscaping',
+        windows:'Windows', doors:'Doors', furnishing:'Furnishing',
+        hotTub:'Hot Tub', contingency:'Contingency',
+      };
+
+      const colW2 = (W - margin * 2) / 3;
+      activeLineItems.forEach(([key, val], i) => {
+        const col = i % 3;
+        const row = Math.floor(i / 3);
+        const x   = margin + col * colW2;
+        const yy  = y + row * 10;
+        doc.setFillColor(245, 246, 248);
+        doc.rect(x, yy - 3, colW2 - 2, 9, 'F');
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(107, 124, 147);
+        doc.text(labelMap[key] || key, x + 2, yy + 2);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(31, 58, 95);
+        doc.text(fmt(val), x + colW2 - 4, yy + 2, { align: 'right' });
+      });
+
+      y += Math.ceil(activeLineItems.length / 3) * 10 + 6;
+
+      // ── Risk flags ────────────────────────────────────────────
+      if (y < 240) {
+        doc.setDrawColor(221, 227, 236);
+        doc.line(margin, y, W - margin, y);
+        y += 6;
+
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(107, 124, 147);
+        doc.text('RISK FLAGS', margin, y);
+        y += 5;
+
+        risks.slice(0, 4).forEach(risk => {
+          const rColor = risk.severity === 'danger' ? [192,57,43] : risk.severity === 'warning' ? [224,123,42] : [41,128,185];
+          doc.setFillColor(rColor[0], rColor[1], rColor[2]);
+          doc.rect(margin, y - 3, 2, 8, 'F');
+          doc.setFillColor(245, 246, 248);
+          doc.rect(margin + 2, y - 3, W - margin * 2 - 2, 8, 'F');
+          doc.setFontSize(8);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(31, 58, 95);
+          doc.text(risk.title, margin + 5, y + 1);
+          y += 9;
+        });
+      }
+
+      // ── Footer ────────────────────────────────────────────────
+      doc.setFillColor(31, 58, 95);
+      doc.rect(0, 282, W, 15, 'F');
+      doc.setTextColor(168, 191, 218);
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Generated by TexasFlipIQ — For investment analysis purposes only. Not financial advice.', margin, 291);
+      doc.text(`${score.label} · Deal Score ${score.score}/100`, W - margin, 291, { align: 'right' });
+
+      // ── Save ─────────────────────────────────────────────────
+      const filename = input.address
+        ? `TexasFlipIQ_${input.address.replace(/\s+/g, '_')}.pdf`
+        : `TexasFlipIQ_Deal_${input.zipCode}.pdf`;
+
+      doc.save(filename);
+
+    } catch (err) {
+      console.error('PDF export error:', err);
+      alert('PDF export failed. Please try again.');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100vh', fontFamily:'system-ui,sans-serif', background:'#F5F6F8', color:'#1F3A5F' }}>
@@ -117,6 +363,15 @@ export default function Dashboard() {
               ⚠ {warningCount} warnings
             </span>
           )}
+
+          {/* PDF Export Button */}
+          <button
+            onClick={exportPDF}
+            disabled={exporting}
+            style={{ fontSize:11, fontWeight:600, padding:'6px 14px', borderRadius:8, border:'1px solid #2EC4B6', background: exporting ? '#1a4a3a' : '#1a3d3a', color:'#2EC4B6', cursor: exporting ? 'not-allowed' : 'pointer' }}>
+            {exporting ? '⏳ Exporting...' : '📄 Export PDF'}
+          </button>
+
           <span style={{ fontSize:11, fontWeight:700, padding:'4px 14px', borderRadius:20, border:`2px solid ${scoreColor}`, color:'#fff', background:score.score>=70?'#1a8a82':score.score>=45?'#b5601a':'#922b21' }}>
             Deal Score {score.score}/100 ({score.grade})
           </span>
@@ -138,15 +393,12 @@ export default function Dashboard() {
         <PropertySidebar input={input} onUpdate={updateInput} />
         <main style={{ flex:1, overflowY:'auto', padding:24, background:'#F5F6F8' }}>
 
-          {/* Rehab adjustment banner — visible on all tabs when items are zeroed */}
           {Object.values(enabledItems).some(v => v === false) && activeTab !== 'rehab' && (
             <div style={{ background:'#e8faf9', border:'1px solid #2EC4B6', borderRadius:10, padding:'10px 16px', marginBottom:16, display:'flex', alignItems:'center', justifyContent:'space-between', fontSize:13 }}>
               <span>
-                <strong style={{ color:'#1a8a82' }}>⚙ Rehab scope adjusted</strong>
-                <span style={{ color:'#1F3A5F', marginLeft:8 }}>
-                  Using <strong>${adjustedRehab.total.toLocaleString()}</strong> adjusted rehab
-                  (vs <strong>${rehab.total.toLocaleString()}</strong> full estimate).
-                  All calculations reflect active items only.
+                <strong style={{ color:'#1a8a82' }}>⚙ Rehab scope adjusted — </strong>
+                <span style={{ color:'#1F3A5F' }}>
+                  Using <strong>{fmt(adjustedRehab.total)}</strong> adjusted rehab (vs <strong>{fmt(rehab.total)}</strong> full estimate). All calculations reflect active items only.
                 </span>
               </span>
               <button
@@ -157,10 +409,10 @@ export default function Dashboard() {
             </div>
           )}
 
-          {activeTab === 'overview'  && <DealOverviewPanel input={input} rehab={adjustedRehab} fullRehab={rehab} deal={deal} risks={risks} />}
-          {activeTab === 'rehab'     && <RehabBreakdownPanel input={input} rehab={rehab} enabledItems={enabledItems} onToggle={(key) => setEnabledItems(prev => ({ ...prev, [key]: !prev[key] }))} onSetEnabled={setEnabledItems} />}
-          {activeTab === 'strategy'  && <StrategyPanel input={input} rehab={adjustedRehab} deal={deal} recommendations={recs} />}
-          {activeTab === 'comps'     && <CompsPanel input={input} comps={comps} risks={risks} />}
+          {activeTab==='overview'  && <DealOverviewPanel input={input} rehab={adjustedRehab} fullRehab={rehab} deal={deal} risks={risks} />}
+          {activeTab==='rehab'     && <RehabBreakdownPanel input={input} rehab={rehab} enabledItems={enabledItems} onToggle={key => setEnabledItems(prev => ({ ...prev, [key]: !prev[key] }))} onSetEnabled={setEnabledItems} />}
+          {activeTab==='strategy'  && <StrategyPanel input={input} rehab={adjustedRehab} deal={deal} recommendations={recs} />}
+          {activeTab==='comps'     && <CompsPanel input={input} comps={comps} risks={risks} />}
         </main>
       </div>
     </div>
