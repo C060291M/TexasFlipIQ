@@ -82,7 +82,7 @@ export function PropertySidebar({ input, onUpdate }: Props) {
       <span style={sec}>Property Address</span>
       <div style={{ marginTop:8 }}>
         <label style={lbl}>Street address</label>
-        <input type="text" value={input.address??''} onChange={e => onUpdate('address', e.target.value)} placeholder="e.g. 619 Oak Glen Dr" style={box} />
+        <input type="text" value={input.address??''} onChange={e => onUpdate('address', e.target.value)} placeholder="123 Main Street" style={box} />
       </div>
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginTop:8 }}>
         <div><label style={lbl}>City</label><input type="text" value={input.city??''} onChange={e => onUpdate('city', e.target.value)} placeholder="Kemah" style={box} /></div>
