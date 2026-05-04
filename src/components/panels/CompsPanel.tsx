@@ -65,8 +65,8 @@ export function CompsPanel({ input, comps, risks, onUpdateArv }: Props) {
 
     try {
       const res = await fetch(
-        `/api/comps?zip=${input.zipCode}&city=${encodeURIComponent(input.city||'')}&beds=${input.bedrooms}&sqft=${input.sqft}&address=${encodeURIComponent(input.address||'')}`
-      );
+  `/api/comps?zip=${input.zipCode}&city=${encodeURIComponent(input.city||'')}&beds=${input.bedrooms}&sqft=${input.sqft}&year=${input.yearBuilt}&address=${encodeURIComponent(input.address||'')}`
+);
       if (!res.ok) throw new Error('Fetch failed');
       const data = await res.json();
       if (data.comps && data.comps.length > 0) {
