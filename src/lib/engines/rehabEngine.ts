@@ -210,6 +210,12 @@ export function calculateRehab(input: PropertyInput): RehabResult {
       * stratMult.doors * materialM,
   };
 
+  // Pool — add if property has existing pool needing work, or condition is heavy/gut
+  calc.pool = input.hasPool
+    ? (condition === 'light' ? 2500 :
+       condition === 'moderate' ? 6500 :
+       condition === 'heavy' ? 14000 : 22000) * laborM
+    : 0;
   if (customRehabItems) Object.assign(calc, customRehabItems);
 
   const furnishing = exitStrategy === 'str' ? sqft * 11 * materialM : 0;
@@ -231,6 +237,7 @@ export function calculateRehab(input: PropertyInput): RehabResult {
     landscaping: Math.round(calc.landscaping),
     windows:     Math.round(calc.windows),
     doors:       Math.round(calc.doors),
+    ...(calc.pool > 0 && { pool: Math.round(calc.pool) }),
     contingency: Math.round(contingency),
     ...(furnishing > 0 && { furnishing: Math.round(furnishing) }),
     ...(hotTub > 0     && { hotTub:     Math.round(hotTub) }),
