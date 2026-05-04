@@ -6,28 +6,45 @@ export type RiskSeverity = 'info' | 'warning' | 'danger';
 export type TexasRegion = 'austin' | 'houston' | 'dfw' | 'san_antonio' | 'west_texas' | 'panhandle' | 'east_texas' | 'other';
 
 export interface PropertyInput {
+  // Location
   sqft: number;
   yearBuilt: number;
   zipCode: string;
+  city?: string;
+  address?: string;
+
+  // Property details
   propertyType: PropertyType;
   condition: PropertyCondition;
   bedrooms: number;
   bathrooms: number;
+  lotSize?: number;
+  stories?: number;
+  acreage?: number;
+
+  // Property features
+  hasPool?: boolean;
+  isWaterfront?: boolean;
+  hasGarage?: boolean;
+  hasFoundationIssues?: boolean;
+
+  // Exit strategy
   exitStrategy: ExitStrategy;
+
+  // Deal financials
   purchasePrice: number;
   arv: number;
   holdingMonths: number;
+
+  // Hard money
   hardMoneyRate: number;
   hardMoneyPoints: number;
   ltv: number;
-  hasFoundationIssues?: boolean;
-  address?: string;
-  city?: string;
-  customRehabItems?: Partial<RehabLineItems>;
+
+  // Optional overrides
   finishLevel?: FinishLevel;
-  lotSize?: number;
-  stories?: number;
-  askingPrice?: number;
+  customRehabItems?: Partial<RehabLineItems>;
+}
 }
 
 export interface RehabLineItems {
@@ -45,8 +62,9 @@ export interface RehabLineItems {
   doors: number;
   furnishing?: number;
   hotTub?: number;
+pool?: number;
   contingency: number;
-}
+  }
 
 export interface RehabResult {
   lineItems: RehabLineItems;
