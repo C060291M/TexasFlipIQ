@@ -74,8 +74,19 @@ export function generateComps(input: PropertyInput): CompsResult {
   });
 
   // Rental estimates — zip-based, not ARV-based
-  const rentPsf   = isAustin ? 1.45 : zipCode.startsWith('75') ? 1.25 : zipCode.startsWith('77') ? 1.10 : 1.05;
-  const baseRent  = Math.round(sqft * rentPsf / 12);
+  // Monthly rent based on beds and market — NOT sqft formula
+const rentByBeds: Record<number, number> = {
+  1: 950, 2: 1350, 3: 1750, 4: 2200, 5: 2700, 6: 3200,
+};
+const bedsKey = Math.min(6, Math.max(1, bedsNum));
+let baseRent = rentByBeds[bedsKey] || 1750;
+
+// Regional adjustment
+if (isAustin) baseRent = Math.round(baseRent * 1.45);
+else if (zipCode.startsWith('750') || zipCode.startsWith('751')) baseRent = Math.round(baseRent * 1.30);
+else if (zipCode.startsWith('770') || zipCode.startsWith('771')) baseRent = Math.round(baseRent * 1.15);
+else if (zipCode.startsWith('774') || zipCode.startsWith('775')) baseRent = Math.round(baseRent * 1.10);
+else if (zipCode.startsWith('782') || zipCode.startsWith('783')) baseRent = Math.round(baseRent * 1.05);
   const baseAdr   = isAustin ? baseRent * 0.065 : baseRent * 0.055;
   const occ       = isAustin ? 0.73 : 0.68;
 
