@@ -23,11 +23,11 @@ const TABS: Array<{ id: TabId; label: string; icon: string }> = [
 ];
 
 const DEFAULT_INPUT: PropertyInput = {
-  sqft: 1650, yearBuilt: 1978, zipCode: '78701',
-  city: 'Austin', address: '',
+  sqft: 0, yearBuilt: 0, zipCode: '',
+  city: '', address: '',
   propertyType: 'sfr', condition: 'moderate',
-  bedrooms: 3, bathrooms: 2, exitStrategy: 'flip',
-  purchasePrice: 185000, arv: 310000,
+  bedrooms: 0, bathrooms: 0, exitStrategy: 'flip',
+  purchasePrice: 0, arv: 0,
   holdingMonths: 5, hardMoneyRate: 11.5,
   hardMoneyPoints: 2, ltv: 70,
   hasFoundationIssues: false,
