@@ -57,7 +57,7 @@ export function CompsPanel({ input, comps, risks, onUpdateArv }: Props) {
     setArvApplied(false);
   };
 
-  const fetchLiveComps = async () => {
+ const fetchLiveComps = async () => {
     setLoading(true);
     setError('');
     setSearched(true);
@@ -65,13 +65,20 @@ export function CompsPanel({ input, comps, risks, onUpdateArv }: Props) {
 
     try {
       const res = await fetch(
-        `/api/comps?zip=${input.zipCode}&city=${encodeURIComponent(input.city||'')}&beds=${input.bedrooms}&address=${encodeURIComponent(input.address||'')}`
+        `/api/comps?zip=${input.zipCode}&city=${encodeURIComponent(input.city||'')}&beds=${input.bedrooms}&sqft=${input.sqft}&address=${encodeURIComponent(input.address||'')}`
       );
       if (!res.ok) throw new Error('Fetch failed');
       const data = await res.json();
       if (data.comps && data.comps.length > 0) {
         setLiveComps(data.comps);
-        calcSuggestedArv(data.comps);
+
+        // Use server-calculated ARV if available, otherwise calculate locally
+        const arv = data.suggestedArv || calcSuggestedArvFromComps(data.comps);
+        setSuggestedArv(arv);
+
+        // Auto-apply ARV immediately
+        onUpdateArv(arv);
+        setArvApplied(true);
       } else {
         setError('No recent sales found for this zip. Try a nearby zip code.');
       }
@@ -80,6 +87,12 @@ export function CompsPanel({ input, comps, risks, onUpdateArv }: Props) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const calcSuggestedArvFromComps = (compList: LiveComp[]) => {
+    const prices  = compList.map(c => c.price).sort((a, b) => a - b);
+    const trimmed = prices.length > 4 ? prices.slice(1, -1) : prices;
+    return Math.round(trimmed.reduce((a, b) => a + b, 0) / trimmed.length);
   };
 
   const applyArv = () => {
