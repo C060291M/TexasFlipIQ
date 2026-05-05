@@ -423,7 +423,7 @@ export function DealOverviewPanel({
           )}
         </div>
 
-        {/* Risk flags */}
+     {/* Risk flags */}
         <div>
           <div style={{
             fontSize: 12, fontWeight: 700, color: '#1F3A5F',
@@ -431,6 +431,61 @@ export function DealOverviewPanel({
           }}>
             Risk flags ({risks.length})
           </div>
+
+          {/* MAO action card — always visible when flip strategy and ARV is set */}
+          {isFlip && mao > 0 && onUpdatePurchasePrice && (
+            <div style={{
+              background: input.purchasePrice > mao ? '#fef5e7' : '#e8faf9',
+              border: `1px solid ${input.purchasePrice > mao ? '#E07B2A' : '#2EC4B6'}`,
+              borderRadius: 8,
+              padding: '12px 14px',
+              marginBottom: 10,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 10,
+            }}>
+              <div style={{
+                fontSize: 12,
+                color: input.purchasePrice > mao ? '#78350f' : '#1a8a82',
+                lineHeight: 1.6,
+              }}>
+                <strong>
+                  {input.purchasePrice > mao
+                    ? 'Purchase price exceeds MAO.'
+                    : input.purchasePrice > 0
+                    ? 'Purchase price is within MAO.'
+                    : 'MAO calculated from ARV and rehab.'}
+                </strong><br />
+                Max allowable offer:{' '}
+                <strong style={{ fontFamily: 'monospace' }}>{fmt(mao)}</strong><br />
+                <span style={{ fontSize: 10, opacity: 0.85 }}>
+                  (ARV x 70%) minus rehab cost of {fmt(rehab.total)}
+                </span>
+              </div>
+              <button
+                onClick={() => onUpdatePurchasePrice(mao)}
+                style={{
+                  flexShrink: 0,
+                  padding: '8px 16px',
+                  background: input.purchasePrice > mao ? '#E07B2A' : '#2EC4B6',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 6,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}>
+                Use MAO {fmt(mao)}
+              </button>
+            </div>
+          )}
+
+          {risks.map(r => (
+            <RiskBadge key={r.id} r={r} />
+          ))}
+        </div>
 
           {risks.map(r => {
             // Add Use MAO button to any purchase price / 70% rule flag
