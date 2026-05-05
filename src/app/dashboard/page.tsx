@@ -468,7 +468,7 @@ export default function Dashboard() {
             </div>
           )}
 
-          {activeTab === 'overview'  && <DealOverviewPanel input={input} rehab={adjustedRehab} fullRehab={rehab} deal={deal} risks={risks} />}
+          {activeTab === 'overview'  && <DealOverviewPanel input={input} rehab={adjustedRehab} fullRehab={rehab} deal={deal} risks={risks} onUpdatePurchasePrice={price => updateInput('purchasePrice', price)} />}
           {activeTab === 'rehab'     && <RehabBreakdownPanel input={input} rehab={rehab} enabledItems={enabledItems} onToggle={key => setEnabledItems(prev => ({ ...prev, [key]: !prev[key] }))} onSetEnabled={setEnabledItems} />}
           {activeTab === 'strategy'  && <StrategyPanel input={input} rehab={adjustedRehab} deal={deal} recommendations={recs} />}
           {activeTab === 'comps'     && <CompsPanel input={input} comps={comps} risks={risks} onUpdateArv={arv => updateInput('arv', arv)} />}
