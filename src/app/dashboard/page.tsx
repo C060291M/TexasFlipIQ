@@ -235,22 +235,22 @@ export default function Dashboard() {
       y += 5;
 
       const flipRows = [
-        { l: 'ARV',                       v: f(input.arv),                                                              pos: true  },
-        { l: 'Less Purchase Price',        v: f(input.purchasePrice),                                                   pos: false },
-        { l: 'Less Rehab Cost',            v: f(adjustedRehab.total),                                                   pos: false },
-        { l: 'Less Carrying Costs',        v: f(deal.loan.totalCarryingCost),                                           pos: false },
-        { l: 'Less Closing Costs Buy',     v: f(deal.texasCosts.titleEscrowBuy),                                        pos: false },
-        { l: 'Less Property Tax',          v: f(deal.texasCosts.propertyTax),                                           pos: false },
-        { l: 'Less Realtor and Closing',   v: f(deal.texasCosts.realtorCommission + deal.texasCosts.titleEscrowSell),   pos: false },
-        { l: 'NET PROFIT',                 v: f(deal.flip?.netProfit ?? 0),                                             pos: true,  bold: true },
+        { l: 'ARV',                    v: f(input.arv),                                                            pos: true  },
+        { l: 'Purchase Price',         v: f(input.purchasePrice),                                                  pos: false },
+        { l: 'Rehab Cost',             v: f(adjustedRehab.total),                                                  pos: false },
+        { l: 'Carrying Costs',         v: f(deal.loan.totalCarryingCost),                                          pos: false },
+        { l: 'Closing Costs (Buy)',    v: f(deal.texasCosts.titleEscrowBuy),                                        pos: false },
+        { l: 'Property Tax',           v: f(deal.texasCosts.propertyTax),                                          pos: false },
+        { l: 'Realtor + Sell Closing', v: f(deal.texasCosts.realtorCommission + deal.texasCosts.titleEscrowSell),  pos: false },
+        { l: 'NET PROFIT',             v: f(deal.flip?.netProfit ?? 0),                                            pos: true,  bold: true },
       ];
 
       const rentalRows = [
-        { l: 'Gross Annual Rent',          v: f((deal.rental?.grossMonthlyRent ?? 0) * 12), pos: true  },
-        { l: 'Less Operating Expenses',    v: f(deal.rental?.operatingExpenses ?? 0),       pos: false },
-        { l: 'Equals NOI',                 v: f(deal.rental?.noi ?? 0),                     pos: true  },
-        { l: 'Less Annual Debt Service',   v: f(deal.rental?.annualDebtService ?? 0),       pos: false },
-        { l: 'ANNUAL CASH FLOW',           v: f(deal.rental?.annualCashFlow ?? 0),          pos: true,  bold: true },
+        { l: 'Gross Annual Rent',     v: f((deal.rental?.grossMonthlyRent ?? 0) * 12), pos: true  },
+        { l: 'Operating Expenses',    v: f(deal.rental?.operatingExpenses ?? 0),       pos: false },
+        { l: 'NOI',                   v: f(deal.rental?.noi ?? 0),                     pos: true  },
+        { l: 'Annual Debt Service',   v: f(deal.rental?.annualDebtService ?? 0),       pos: false },
+        { l: 'ANNUAL CASH FLOW',      v: f(deal.rental?.annualCashFlow ?? 0),          pos: true,  bold: true },
       ];
 
       const wfRows = isFlip ? flipRows : rentalRows;
