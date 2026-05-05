@@ -198,9 +198,9 @@ export function CompsPanel({ input, comps, risks, onUpdateArv }: Props) {
       <div style={{ background:'#fef5e7', border:'1px solid #E07B2A', borderRadius:10, padding:'12px 16px', display:'flex', gap:10, alignItems:'flex-start' }}>
         <span style={{ fontSize:16, flexShrink:0 }}>⚠</span>
         <div style={{ fontSize:12, color:'#78350f', lineHeight:1.7 }}>
-          <strong>Comps are estimates — due diligence required before locking in ARV.</strong>
+<strong>Comps are estimates — due diligence required before locking in ARV.</strong>
           {' '}All data is sourced from public records and regional market averages.
-          Verify ARV with a licensed Texas realtor, PropStream, or MLS access before making any offer.
+          Verify ARV with a licensed Texas realtor or local MLS access before making any offer.
           This tool is a deal screener, not an appraisal.
         </div>
       </div>
