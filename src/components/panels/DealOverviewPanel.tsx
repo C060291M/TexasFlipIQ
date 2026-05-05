@@ -433,10 +433,15 @@ export function DealOverviewPanel({
           </div>
 
           {risks.map(r => {
-            // Add Use MAO button to the 70% rule violation flag
+            // Add Use MAO button to any purchase price / 70% rule flag
             const isMaoFlag =
               r.id === 'flip-70-rule' ||
-              r.id === 'flip-70-rule-violation';
+              r.id === 'flip-70-rule-violation' ||
+              r.id === 'flip-marginal-roi' ||
+              r.category === 'market' && r.description.toLowerCase().includes('mao') ||
+              r.title.toLowerCase().includes('70%') ||
+              r.title.toLowerCase().includes('mao') ||
+              r.title.toLowerCase().includes('purchase price');
             const showMaoBtn = isMaoFlag && mao > 0 && onUpdatePurchasePrice;
 
             return (
