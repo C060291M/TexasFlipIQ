@@ -207,20 +207,21 @@ export default function Dashboard() {
       y += 5;
 
       const rows = isFlip ? [
-        { l:'ARV',                        v:fmt(input.arv),                                                              pos:true  },
-        { l:'− Purchase price',           v:fmt(input.purchasePrice),                                                   pos:false },
-        { l:'− Rehab cost',              v:fmt(adjustedRehab.total),                                                    pos:false },
-        { l:'− Carrying costs',          v:fmt(deal.loan.totalCarryingCost),                                            pos:false },
-        { l:'− Closing costs (buy)',      v:fmt(deal.texasCosts.titleEscrowBuy),                                         pos:false },
-        { l:'− Property tax',            v:fmt(deal.texasCosts.propertyTax),                                            pos:false },
-        { l:'− Realtor + sell closing',  v:fmt(deal.texasCosts.realtorCommission+deal.texasCosts.titleEscrowSell),      pos:false },
-        { l:'NET PROFIT',                v:fmt(deal.flip?.netProfit ?? 0),                                              pos:true, bold:true },
+        const rows = isFlip ? [
+        { l:'ARV',                      v:fmt(input.arv),                                                            pos:true  },
+        { l:'Less: Purchase price',     v:fmt(input.purchasePrice),                                                  pos:false },
+        { l:'Less: Rehab cost',         v:fmt(adjustedRehab.total),                                                  pos:false },
+        { l:'Less: Carrying costs',     v:fmt(deal.loan.totalCarryingCost),                                          pos:false },
+        { l:'Less: Closing costs buy',  v:fmt(deal.texasCosts.titleEscrowBuy),                                       pos:false },
+        { l:'Less: Property tax',       v:fmt(deal.texasCosts.propertyTax),                                          pos:false },
+        { l:'Less: Realtor and closing',v:fmt(deal.texasCosts.realtorCommission+deal.texasCosts.titleEscrowSell),    pos:false },
+        { l:'NET PROFIT',               v:fmt(deal.flip?.netProfit ?? 0),                                            pos:true, bold:true },
       ] : [
-        { l:'Gross annual rent',          v:fmt((deal.rental?.grossMonthlyRent??0)*12), pos:true  },
-        { l:'− Operating expenses',      v:fmt(deal.rental?.operatingExpenses??0),     pos:false },
-        { l:'= NOI',                     v:fmt(deal.rental?.noi??0),                   pos:true  },
-        { l:'− Annual debt service',     v:fmt(deal.rental?.annualDebtService??0),     pos:false },
-        { l:'ANNUAL CASH FLOW',          v:fmt(deal.rental?.annualCashFlow??0),        pos:true, bold:true },
+        { l:'Gross annual rent',        v:fmt((deal.rental?.grossMonthlyRent ?? 0) * 12), pos:true  },
+        { l:'Less: Operating expenses', v:fmt(deal.rental?.operatingExpenses ?? 0),       pos:false },
+        { l:'Equals: NOI',             v:fmt(deal.rental?.noi ?? 0),                     pos:true  },
+        { l:'Less: Annual debt service',v:fmt(deal.rental?.annualDebtService ?? 0),       pos:false },
+        { l:'ANNUAL CASH FLOW',        v:fmt(deal.rental?.annualCashFlow ?? 0),           pos:true, bold:true },
       ];
 
       rows.forEach((row: any) => {
