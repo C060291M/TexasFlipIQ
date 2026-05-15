@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import type { PropertyInput, RehabResult } from '@/types';
 import { calculateRehab } from '@/lib/engines/rehabEngine';
 import { calculateDeal } from '@/lib/engines/dealCalculator';
@@ -21,6 +22,23 @@ const TABS: Array<{ id: TabId; label: string; icon: string }> = [
   { id: 'strategy',  label: 'Strategy Optimizer', icon: '🎯' },
   { id: 'comps',     label: 'Comps & Risks',      icon: '🏘' },
 ];
+
+function PrefillLoader({ onLoad }: { onLoad: (data: Partial<PropertyInput>) => void }) {
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    const address = searchParams.get('address');
+    if (address) {
+      onLoad({
+        address: address || '',
+        city: searchParams.get('city') || '',
+        zipCode: searchParams.get('zip_code') || '',
+        purchasePrice: Number(searchParams.get('purchase_price')) || 0,
+        arv: Number(searchParams.get('arv')) || 0,
+      });
+    }
+  }, []);
+  return null;
+}
 
 const DEFAULT_INPUT: PropertyInput = {
   sqft: 0, yearBuilt: 0, zipCode: '',
@@ -100,7 +118,43 @@ export default function Dashboard() {
     : input.zipCode
     ? `TX ${input.zipCode}`
     : '';
+const sendToCRM = async () => {
+    try {
+      const payload = {
+        address:      input?.address || '',
+        city:         input?.city || '',
+        state:        'TX',
+        zipCode:      input?.zipCode || '',
+        arv:          input?.arv || 0,
+        rehabCost:    adjustedRehab?.total || 0,
+        offerPrice:   input?.purchasePrice || deal?.flip?.maxAllowableOffer || 0,
+        flipProfit:   deal?.flip?.netProfit || 0,
+        roi:          deal?.flip?.roi || 0,
+        mao:          deal?.flip?.maxAllowableOffer || 0,
+        annualizedRoi: deal?.flip?.annualizedRoi || 0,
+        dealScore:    score?.score || 0,
+        dealGrade:    score?.grade || '',
+        condition:    input?.condition || 'moderate',
+        exitStrategy: input?.exitStrategy || 'Fix & Flip',
+      }
 
+      const response = await fetch('http://localhost:3000/api/send-to-crm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        alert('✅ Deal data sent to UnderwriteIQ CRM!\n\nGo to the CRM tab in your dashboard and click "Import from FlipIQ" on the matching lead to populate the deal numbers.')
+      } else {
+        alert('❌ Could not send to CRM. Make sure UnderwriteIQ is running at localhost:8000')
+      }
+    } catch (error) {
+      alert('❌ Connection failed. Make sure both FlipIQ and UnderwriteIQ are running.')
+    }
+  }
   const exportPDF = async () => {
     setExporting(true);
     try {
@@ -398,6 +452,7 @@ export default function Dashboard() {
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100vh', fontFamily:'system-ui,sans-serif', background:'#F5F6F8', color:'#1F3A5F' }}>
+      <PrefillLoader onLoad={(data) => setInput(prev => ({ ...prev, ...data }))} />
 
       {/* Header */}
       <header style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 24px', borderBottom:'1px solid #DDE3EC', background:'#1F3A5F' }}>
@@ -428,6 +483,11 @@ export default function Dashboard() {
             disabled={exporting}
             style={{ fontSize:12, fontWeight:700, padding:'7px 16px', borderRadius:8, border:'2px solid #2EC4B6', background:'#1a4a40', color:'#2EC4B6', cursor:exporting?'not-allowed':'pointer', display:'flex', alignItems:'center', gap:6 }}>
             {exporting ? '⏳ Exporting...' : '📄 Export PDF'}
+         </button>
+          <button
+            onClick={sendToCRM}
+            style={{ fontSize:12, fontWeight:700, padding:'7px 16px', borderRadius:8, border:'2px solid #0F6E56', background:'#0a3d2e', color:'#2EC4B6', cursor:'pointer', display:'flex', alignItems:'center', gap:6 }}>
+            🏠 Send to CRM
           </button>
           <span style={{ fontSize:11, fontWeight:700, padding:'4px 14px', borderRadius:20, border:`2px solid ${scoreColor}`, color:'#fff', background:score.score>=70?'#1a8a82':score.score>=45?'#b5601a':'#922b21' }}>
             Deal Score {score.score}/100 ({score.grade})
