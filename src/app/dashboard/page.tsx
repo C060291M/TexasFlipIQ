@@ -34,6 +34,10 @@ function PrefillLoader({ onLoad }: { onLoad: (data: Partial<PropertyInput>) => v
         zipCode: searchParams.get('zip_code') || '',
         purchasePrice: Number(searchParams.get('purchase_price')) || 0,
         arv: Number(searchParams.get('arv')) || 0,
+        sqft: Number(searchParams.get('sqft')) || 0,
+        bedrooms: Number(searchParams.get('beds')) || 0,
+        bathrooms: Number(searchParams.get('baths')) || 0,
+        yearBuilt: Number(searchParams.get('year_built')) || 0,
       });
     }
   }, []);
